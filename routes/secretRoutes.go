@@ -10,6 +10,7 @@ import (
 
 func SecretRoutes(router *mux.Router) {
 	secretRouter := router.PathPrefix("/api/secrets").Subrouter()
-	secretRouter.Handle("/create-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.CreateSecretHandler)))
-	secretRouter.Handle("/get-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.GetSecretHandler)))
+	secretRouter.Handle("/create-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.CreateSecretHandler))).Methods("POST")
+	secretRouter.Handle("/get-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.GetSecretHandler))).Methods("GET")
+	secretRouter.Handle("/delete-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.DeleteSecretHandler))).Methods("DELETE")
 }

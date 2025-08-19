@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -65,5 +66,85 @@ func CreateSecretHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: Implement this function
 func GetSecretHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := storage.DB.Query("SELECT id, title, secret, tags, extra_data FROM user_secrets WHERE user_id = ?", r.URL.Query().Get("id"))
 
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	keyHex := os.Getenv("VAULT_ENC_KEY")
+	key, _ := hex.DecodeString(keyHex)
+
+	type SecretResponse struct {
+		Id        int64  `json:"id"`
+		Title     string `json:"title"`
+		Secret    string `json:"secret"`
+		Tags      string `json:"tags"`
+		ExtraData string `json:"extra_data,omitempty"`
+	}
+
+	var secrets []SecretResponse
+
+	for rows.Next() {
+		var title, secret, tags, extra_data []byte
+		var id int64
+
+		if err := rows.Scan(&id, &title, &secret, &tags, &extra_data); err != nil {
+			fmt.Println(err)
+		}
+
+		decryptedTitle, _ := utils.Decrypt([]byte(title), key)
+		decryptedSecret, _ := utils.Decrypt([]byte(secret), key)
+		decryptedTag, _ := utils.Decrypt([]byte(tags), key)
+
+		var decryptedExtraData []byte
+		if len(extra_data) > 0 {
+			decryptedExtraData, _ = utils.Decrypt(extra_data, key)
+		}
+
+		secrets = append(secrets, SecretResponse{
+			Id:        id,
+			Title:     string(decryptedTitle),
+			Secret:    string(decryptedSecret),
+			Tags:      string(decryptedTag),
+			ExtraData: string(decryptedExtraData),
+		})
+
+		fmt.Println("ID: " + fmt.Sprint(id))
+		fmt.Println("Title: " + string(decryptedTitle))
+		fmt.Println("Secret: " + string(decryptedSecret))
+		fmt.Println("Tags: " + string(decryptedTag))
+		fmt.Println("Extra Data: " + string(decryptedExtraData))
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(secrets)
+
+}
+
+func UpdateSecretHandler(w http.ResponseWriter, r *http.Request) {}
+
+func DeleteSecretHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	result, err := storage.DB.Exec("DELETE FROM user_secrets WHERE id=?", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "❌ No secret found with that title for this user",
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "✅ Deleted successfully!",
+	})
 }

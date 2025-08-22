@@ -13,4 +13,5 @@ func SecretRoutes(router *mux.Router) {
 	secretRouter.Handle("/create-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.CreateSecretHandler))).Methods("POST")
 	secretRouter.Handle("/get-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.GetSecretHandler))).Methods("GET")
 	secretRouter.Handle("/delete-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.DeleteSecretHandler))).Methods("DELETE")
+	secretRouter.Handle("/update-secret", middleware.AuthMiddleware(http.HandlerFunc(controllers.UpdateSecretHandler))).Methods("PATCH")
 }

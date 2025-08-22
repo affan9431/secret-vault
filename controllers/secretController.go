@@ -61,7 +61,10 @@ func CreateSecretHandler(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	fmt.Fprintf(w, "Successfully created secret!")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "✅ Successfully created secret!",
+	})
 }
 
 // TODO: Implement this function
@@ -121,11 +124,76 @@ func GetSecretHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(secrets)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"secrets": secrets,
+	})
 
 }
 
-func UpdateSecretHandler(w http.ResponseWriter, r *http.Request) {}
+func UpdateSecretHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+
+	type UpdateSecret struct {
+		Title     string  `json:"title"`
+		Secret    string  `json:"secret"`
+		Tags      string  `json:"tags"`
+		ExtraData *string `json:"extra_data,omitempty"`
+	}
+
+	var updateSecret UpdateSecret
+	json.NewDecoder(r.Body).Decode(&updateSecret)
+
+	extra_data := updateSecret.ExtraData
+
+	keyHex := os.Getenv("VAULT_ENC_KEY")
+	key, _ := hex.DecodeString(keyHex)
+
+	encrpytedTitle, err := utils.Encrypt([]byte(updateSecret.Title), key)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	encrpytedSecret, err := utils.Encrypt([]byte(updateSecret.Secret), key)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	encrpytedTag, err := utils.Encrypt([]byte(updateSecret.Tags), key)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	encrpytedExtraData, err := utils.Encrypt([]byte(*updateSecret.ExtraData), key)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if extra_data != nil && *extra_data != "" {
+
+		_, err := storage.DB.Exec("UPDATE user_secrets SET title=?, secret=?, tags=?, extra_data=? WHERE id=?", encrpytedTitle, encrpytedSecret, encrpytedTag, encrpytedExtraData, id)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		_, err := storage.DB.Exec("UPDATE user_secrets SET title=?, secret=?, tags=? WHERE id=?", encrpytedTitle, encrpytedSecret, encrpytedTag, id)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "✅ Successfully update secret!",
+	})
+
+}
 
 func DeleteSecretHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
@@ -145,6 +213,7 @@ func DeleteSecretHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
 		"message": "✅ Deleted successfully!",
 	})
 }
